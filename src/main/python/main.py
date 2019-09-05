@@ -106,8 +106,9 @@ def save_mp4(video_path):
     in1 = ffmpeg.input(video_path, rtsp_transport='tcp')
     v1 = in1.video
     a1 = in1.audio
-    v2 = v1.filter('scale', 860, -1)
-    joined = ffmpeg.concat(v2, a1, v=1, a=1).node
+    v1 = v1.filter('scale', 860, -1)
+    v1 = v1.filter('fps', fps=4, round='up')
+    joined = ffmpeg.concat(v1, a1, v=1, a=1).node
     out = ffmpeg.output(joined[0], joined[1], output_fpath)
     process1 = out.run_async()
     return process1
@@ -149,7 +150,8 @@ class VideoTimer(QThread):
 class Ui(QtWidgets.QMainWindow):
     def __init__(self):
         super(Ui, self).__init__()
-        uic.loadUi('main.ui', self)
+        # https://github.com/mherrmann/fbs/issues/32
+        uic.loadUi(appctxt.get_resource('main.ui'), self)
         self.button = self.findChild(QtWidgets.QPushButton, 'pushButton')
         self.button.clicked.connect(self.playButtonPressed)
 
@@ -166,8 +168,6 @@ class Ui(QtWidgets.QMainWindow):
         # timer 设置
         self.timer = VideoTimer()
         self.timer.timeSignal.signal[str].connect(self.show_video_images)
-        fps = 20
-        self.timer.set_fps(fps)
 
         #
         self.save_mp4_process = None
@@ -175,7 +175,7 @@ class Ui(QtWidgets.QMainWindow):
         self.width, self.height = None, None
         self.url_base = None
         self.play = False
-        self.draw_count = True
+        self.draw_count = 0
         self.show()
 
     def playButtonPressed(self):
@@ -207,7 +207,7 @@ class Ui(QtWidgets.QMainWindow):
         if True:
             if True:
                 frame = read_frame(self.process1, width, height)
-                if self.isDraw:
+                if self.isDraw and type(frame) == np.ndarray:
                     temp_image = QImage(frame.flatten(), width, height, QImage.Format_RGB888)
                     temp_pixmap = QPixmap.fromImage(temp_image)
                     self.pictureLabel.setPixmap(temp_pixmap)
@@ -226,7 +226,7 @@ class Ui(QtWidgets.QMainWindow):
     @property
     def isDraw(self):
         self.draw_count += 1
-        self.draw_count = self.draw_count % 3
+        self.draw_count = self.draw_count % 10
         if self.draw_count == 0:
             return True
         else:
