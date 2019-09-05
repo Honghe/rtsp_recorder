@@ -179,8 +179,8 @@ class Ui(QtWidgets.QMainWindow):
 
         url_base = self.input.text().strip()
         self.url_base = url_base
-        video_path = os.path.join(url_base, "h264/ch1/sub/av_stream")
-        video_path_main = os.path.join(url_base, "h264/ch1/main/av_stream")
+        video_path = ''.join([url_base, "/h264/ch1/sub/av_stream"])
+        video_path_main = ''.join([url_base, "/h264/ch1/main/av_stream"])
 
         self.width, self.height, ok = get_video_size(video_path)
         _, _, ok2 = get_video_size(video_path_main)
