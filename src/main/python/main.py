@@ -13,7 +13,7 @@ import numpy as np
 from PyQt5 import QtWidgets, uic
 from PyQt5.QtCore import QStringListModel, QMutexLocker, QMutex, QThread, QObject, pyqtSignal
 from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtWidgets import QCompleter
+from PyQt5.QtWidgets import QCompleter, QDialog
 from fbs_runtime.application_context.PyQt5 import ApplicationContext
 
 logger = logging.getLogger(__name__)
@@ -22,13 +22,23 @@ logging.basicConfig(level=logging.INFO)
 home = expanduser('~')
 
 
+class Form(QDialog):
+    def __init__(self, parent=None):
+        super(Form, self).__init__(parent)
+        self.setWindowTitle("")
+
+
 def get_video_size(filename):
     logger.info('Getting video size for {!r}'.format(filename))
-    probe = ffmpeg.probe(filename)
+    try:
+        probe = ffmpeg.probe(filename)
+    except Exception as e:
+        logger.exception(e)
+        return 0, 0, False
     video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
     width = int(video_info['width'])
     height = int(video_info['height'])
-    return width, height
+    return width, height, True
 
 
 def start_ffmpeg_process1(in_filename):
@@ -143,6 +153,7 @@ class Ui(QtWidgets.QMainWindow):
         self.button.clicked.connect(self.playButtonPressed)
 
         self.input = self.findChild(QtWidgets.QLineEdit, 'lineEdit')
+        self.pictureLabel = self.findChild(QtWidgets.QLabel, 'label')
 
         completer = QCompleter()
         self.input.setCompleter(completer)
@@ -159,21 +170,33 @@ class Ui(QtWidgets.QMainWindow):
         self.save_mp4_process = None
         self.process1 = None
         self.width, self.height = None, None
-
+        self.url_base = None
+        self.play = False
         self.show()
 
     def playButtonPressed(self):
-        print('play text: {}'.format(self.input.text()))
-
-        save_url_data(self.input.text())
+        print('playButtonPressed: {}'.format(self.input.text()))
 
         url_base = self.input.text().strip()
+        self.url_base = url_base
         video_path = os.path.join(url_base, "h264/ch1/sub/av_stream")
         video_path_main = os.path.join(url_base, "h264/ch1/main/av_stream")
-        self.save_mp4_process = save_mp4(video_path_main)
 
-        self.process1 = start_ffmpeg_process1(video_path)
-        self.width, self.height = get_video_size(video_path)
+        self.width, self.height, ok = get_video_size(video_path)
+        _, _, ok2 = get_video_size(video_path_main)
+        if ok and ok2:
+            if self.play:
+                return
+            self.play = True
+            self.save_mp4_process = save_mp4(video_path_main)
+
+            self.process1 = start_ffmpeg_process1(video_path)
+
+            self.timer.start()
+            save_url_data(self.input.text())
+        else:
+            QtWidgets.QMessageBox.critical(None, "错误",
+                                           self.url_base + " 连接不上")
 
     def show_video_images(self):
         width, height = self.width, self.height
@@ -184,8 +207,6 @@ class Ui(QtWidgets.QMainWindow):
                 temp_image = QImage(frame.flatten(), width, height, QImage.Format_RGB888)
                 temp_pixmap = QPixmap.fromImage(temp_image)
                 self.pictureLabel.setPixmap(temp_pixmap)
-
-                # write_frame(process2, frame)
             else:
                 print("read failed, no frame data")
                 success, frame = self.playCapture.read()
