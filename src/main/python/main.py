@@ -38,7 +38,8 @@ def get_video_size(filename):
     video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
     width = int(video_info['width'])
     height = int(video_info['height'])
-    return width, height, True
+    fps = int(video_info['r_frame_rate'].split('/')[0])
+    return width, height, fps, True
 
 
 def start_ffmpeg_process1(in_filename):
@@ -165,6 +166,8 @@ class Ui(QtWidgets.QMainWindow):
         # timer 设置
         self.timer = VideoTimer()
         self.timer.timeSignal.signal[str].connect(self.show_video_images)
+        fps = 20
+        self.timer.set_fps(fps)
 
         #
         self.save_mp4_process = None
@@ -172,6 +175,7 @@ class Ui(QtWidgets.QMainWindow):
         self.width, self.height = None, None
         self.url_base = None
         self.play = False
+        self.draw_count = True
         self.show()
 
     def playButtonPressed(self):
@@ -182,8 +186,8 @@ class Ui(QtWidgets.QMainWindow):
         video_path = ''.join([url_base, "/h264/ch1/sub/av_stream"])
         video_path_main = ''.join([url_base, "/h264/ch1/main/av_stream"])
 
-        self.width, self.height, ok = get_video_size(video_path)
-        _, _, ok2 = get_video_size(video_path_main)
+        self.width, self.height, fps, ok = get_video_size(video_path)
+        _, _, _, ok2 = get_video_size(video_path_main)
         if ok and ok2:
             if self.play:
                 return
@@ -191,7 +195,7 @@ class Ui(QtWidgets.QMainWindow):
             self.save_mp4_process = save_mp4(video_path_main)
 
             self.process1 = start_ffmpeg_process1(video_path)
-
+            self.timer.set_fps(fps)
             self.timer.start()
             save_url_data(self.input.text())
         else:
@@ -203,10 +207,10 @@ class Ui(QtWidgets.QMainWindow):
         if True:
             if True:
                 frame = read_frame(self.process1, width, height)
-
-                temp_image = QImage(frame.flatten(), width, height, QImage.Format_RGB888)
-                temp_pixmap = QPixmap.fromImage(temp_image)
-                self.pictureLabel.setPixmap(temp_pixmap)
+                if self.isDraw:
+                    temp_image = QImage(frame.flatten(), width, height, QImage.Format_RGB888)
+                    temp_pixmap = QPixmap.fromImage(temp_image)
+                    self.pictureLabel.setPixmap(temp_pixmap)
             else:
                 print("read failed, no frame data")
                 success, frame = self.playCapture.read()
@@ -218,6 +222,15 @@ class Ui(QtWidgets.QMainWindow):
         else:
             print("open file or capturing device error, init again")
             self.reset()
+
+    @property
+    def isDraw(self):
+        self.draw_count += 1
+        self.draw_count = self.draw_count % 3
+        if self.draw_count == 0:
+            return True
+        else:
+            return False
 
     def exit(self):
         if self.process1:
