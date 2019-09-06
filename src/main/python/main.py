@@ -101,13 +101,14 @@ def save_mp4(video_path):
     os.makedirs(output_dir, exist_ok=True)
 
     date_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_fpath = os.path.join(output_dir, 'saved_{}.mp4'.format(date_time))
+    # https://stackoverflow.com/questions/50134790/python-ffmpeg-moov-atom-not-found-invalid-data-when-processing-input
+    output_fpath = os.path.join(output_dir, 'saved_{}.mkv'.format(date_time))
 
     in1 = ffmpeg.input(video_path, rtsp_transport='tcp')
     v1 = in1.video
     a1 = in1.audio
     v1 = v1.filter('scale', 860, -1)
-    v1 = v1.filter('fps', fps=4, round='up')
+    v1 = v1.filter('fps', fps=15, round='up')
     joined = ffmpeg.concat(v1, a1, v=1, a=1).node
     out = ffmpeg.output(joined[0], joined[1], output_fpath)
     process1 = out.run_async()
